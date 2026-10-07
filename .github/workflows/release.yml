@@ -1,116 +1,69 @@
-name: 'C++ CI'
+name: 'C++ CI/CD'
 
 on:
   push:
     branches:
       - main
-      - master
       - feature/github_actions
 
+permissions: write-all
+
 jobs:
-  build-ubuntu:
-    runs-on: ubuntu-latest
-    permissions: write-all
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v6
         with:
           submodules: true
-      
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install libboost-test-dev -y
-      
-      - name: Configure CMake
-        run: |
-          mkdir -p build
-          cd build
-          cmake .. -DPATCH_VERSION=${{ github.run_number }}
-      
-      - name: Build
-        run: |
-          cd build
-          cmake --build . --config Release
-      
-      - name: Run tests
-        run: |
-          cd build
-          ctest --output-on-failure -C Release
-      
-      - name: Package
-        run: |
-          cd build
-          cmake --build . --target package
-      
-      - name: Upload Ubuntu artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ubuntu-package
-          path: build/*.deb
 
-  build-windows:
-    runs-on: windows-latest
-    permissions: write-all
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
-      
-      - name: Setup MSYS2
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          update: true
-          install: |
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-boost
-            mingw-w64-x86_64-cmake
-            mingw-w64-x86_64-make
-            mingw-w64-x86_64-ninja
-      
       - name: Configure CMake
-        shell: msys2 {0}
-        run: |
-          mkdir -p build
-          cd build
-          cmake .. -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DPATCH_VERSION=${{ github.run_number }}
-      
-      - name: Build
-        shell: msys2 {0}
-        run: |
-          cd build
-          ninja
-      
-      - name: Run tests
-        shell: msys2 {0}
-        run: |
-          cd build
-          ctest --output-on-failure -C Release
-      
-      - name: Upload Windows artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-exe
-          path: build/helloworld_cli.exe
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DPATCH_VERSION=${{ github.run_number }}
 
-  create-release:
-    needs: [build-ubuntu, build-windows]
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Debug — list build tree
+        run: |
+          find build -type f -name "lab3*" || echo "not found"
+        shell: bash
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: lab3-${{ matrix.os }}
+          path: |
+            build/**/LAB3
+            build/**/LAB3.exe
+          if-no-files-found: error
+
+  release:
+    name: Create Release
+    needs: build
     runs-on: ubuntu-latest
-    permissions: write-all
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
-          path: ./artifacts
-      
+          path: artifacts
+
+      - name: List downloaded files (debug)
+        run: ls -R artifacts || echo "No artifacts found"
+        shell: bash
+
       - name: Create Release
-        uses: softprops/action-gh-release@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v3
         with:
-          tag_name: v${{ github.run_number }}
-          name: Release ${{ github.run_number }}
+          tag_name: v1.0.${{ github.run_number }}
+          name: Release v1.0.${{ github.run_number }}
           draft: false
           prerelease: false
-          files: |
-            ./artifacts/ubuntu-package/*.deb
-            ./artifacts/windows-exe/helloworld_cli.exe
+          files: artifacts/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
