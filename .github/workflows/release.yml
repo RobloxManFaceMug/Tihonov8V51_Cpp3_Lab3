@@ -39,8 +39,8 @@ jobs:
         with:
           name: lab3-${{ matrix.os }}
           path: |
-            build/**/LAB3
-            build/**/LAB3.exe
+            build/**/ProgramLab3
+            build/**/ProgramLab3.exe
           if-no-files-found: error
 
   release:
