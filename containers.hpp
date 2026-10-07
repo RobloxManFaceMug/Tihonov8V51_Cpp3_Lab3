@@ -4,47 +4,8 @@
 #include <algorithm>
 #include <iterator>
 
-template <typename T>
-class EvilIterator {
-public:
-    using value_type = T;
-    using difference_type = std::ptrdiff_t;
-    using pointer = T*;
-    using reference = T&;
-    using iterator_category = std::forward_iterator_tag;
-
-    EvilIterator(pointer ptr) : m_ptr(ptr) {}
-
-    reference operator*() const { return *m_ptr; }
-    pointer operator->() { return m_ptr; }
-
-    EvilIterator& operator++() {
-        m_ptr++;
-        return *this;
-    }
-
-    EvilIterator operator++(int) {
-        EvilIterator tmp = *this;
-        ++(*this);
-        return tmp;
-    }
-
-    friend bool operator==(const EvilIterator& a, const EvilIterator& b) {
-        return a.m_ptr == b.m_ptr;
-    }
-
-    friend bool operator!=(const EvilIterator& a, const EvilIterator& b) {
-        return a.m_ptr != b.m_ptr;
-    }
-
-    private:
-        pointer m_ptr;
-    // no idea if I really need to write all of these but better safe than sorry
-};
-
 template <class T, class Allocator = std::allocator<T>> class DynamicArray{
   public:
-    using iterator = EvilIterator<T>;
     using value_type = T;
     using allocator_type = Allocator;
     using reference = value_type &;
@@ -52,26 +13,63 @@ template <class T, class Allocator = std::allocator<T>> class DynamicArray{
     using size_type = size_t;
     using difference_type = ptrdiff_t;
 
- 
-    T& operator[](int index) {
-        return data_[index];
-    }
-
-    const T& operator[](int index) const {
-    return data_[index];
-    }
-
-
-    DynamicArray(): data_(nullptr), size_(0), capacity_(0) {}
-
-    ~DynamicArray() {
-        allocator_type().deallocate(data_, capacity_);
-    }
-
-    void push_back(const T &value){
-        CheckToAddSpace();
-        data_[size_++] = value;
-    }
+    class EvilIterator {
+        public:
+            using value_type = T;
+            using difference_type = std::ptrdiff_t;
+            using pointer = T*;
+            using reference = T&;
+            using iterator_category = std::forward_iterator_tag;
+                
+            EvilIterator(pointer ptr) : m_ptr(ptr) {}
+                
+            reference operator*() const { return *m_ptr; }
+            pointer operator->() { return m_ptr; }
+                
+            EvilIterator& operator++() {
+                m_ptr++;
+                return *this;
+            }
+            
+            EvilIterator operator++(int) {
+                EvilIterator tmp = *this;
+                ++(*this);
+                return tmp;
+            }
+            
+            friend bool operator==(const EvilIterator& a, const EvilIterator& b) {
+                return a.m_ptr == b.m_ptr;
+            }
+            
+            friend bool operator!=(const EvilIterator& a, const EvilIterator& b) {
+                return a.m_ptr != b.m_ptr;
+            }
+            
+            private:
+                pointer m_ptr;
+            // no idea if I really need to write all of these but better safe than sorry
+            };
+            
+            
+            T& operator[](int index) {
+                return data_[index];
+            }
+            
+            const T& operator[](int index) const {
+            return data_[index];
+            }
+            
+            
+            DynamicArray(): data_(nullptr), size_(0), capacity_(0) {}
+            
+            ~DynamicArray() {
+                allocator_type().deallocate(data_, capacity_);
+            }
+            
+            void push_back(const T &value){
+                CheckToAddSpace();
+                data_[size_++] = value;
+            }
 
     void insert(size_t index, const T &value) {
         if (index >= size_) {
@@ -117,9 +115,9 @@ template <class T, class Allocator = std::allocator<T>> class DynamicArray{
         return size_;
     }
 
-    iterator begin() { return iterator(data_); }
+    EvilIterator begin() { return EvilIterator(data_); }
 
-    iterator end() { return iterator(data_ + size_); }
+    EvilIterator end() { return EvilIterator(data_ + size_); }
 
 
     private:
