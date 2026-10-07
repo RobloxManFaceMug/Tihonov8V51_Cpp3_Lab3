@@ -2,9 +2,49 @@
 #include <iostream>
 #include <memory>
 #include <algorithm>
+#include <iterator>
+
+template <typename T>
+class EvilIterator {
+public:
+    using value_type = T;
+    using difference_type = std::ptrdiff_t;
+    using pointer = T*;
+    using reference = T&;
+    using iterator_category = std::forward_iterator_tag;
+
+    EvilIterator(pointer ptr) : m_ptr(ptr) {}
+
+    reference operator*() const { return *m_ptr; }
+    pointer operator->() { return m_ptr; }
+
+    EvilIterator& operator++() {
+        m_ptr++;
+        return *this;
+    }
+
+    EvilIterator operator++(int) {
+        EvilIterator tmp = *this;
+        ++(*this);
+        return tmp;
+    }
+
+    friend bool operator==(const EvilIterator& a, const EvilIterator& b) {
+        return a.m_ptr == b.m_ptr;
+    }
+
+    friend bool operator!=(const EvilIterator& a, const EvilIterator& b) {
+        return a.m_ptr != b.m_ptr;
+    }
+
+    private:
+        pointer m_ptr;
+    // no idea if I really need to write all of these but better safe than sorry
+};
 
 template <class T, class Allocator = std::allocator<T>> class DynamicArray{
   public:
+    using iterator = EvilIterator<T>;
     using value_type = T;
     using allocator_type = Allocator;
     using reference = value_type &;
@@ -15,6 +55,10 @@ template <class T, class Allocator = std::allocator<T>> class DynamicArray{
  
     T& operator[](int index) {
         return data_[index];
+    }
+
+    const T& operator[](int index) const {
+    return data_[index];
     }
 
 
@@ -47,11 +91,16 @@ template <class T, class Allocator = std::allocator<T>> class DynamicArray{
             throw std::out_of_range("this position is out of range");
         }
         data_[index].~T();
-        for(size_t i = index; i < size_-1; i++)
-        {
-            data_[i] = std::move(data_[i + 1]);
+        if (index == size_) {
+            --size_;
         }
-        --size_;
+
+        else {
+            for(size_t i = index; i < size_-1; i++) {
+                data_[i] = std::move(data_[i + 1]);
+            }
+            --size_;
+        }
     }
 
     reference at(size_type index){
@@ -67,6 +116,11 @@ template <class T, class Allocator = std::allocator<T>> class DynamicArray{
     size_type size() const {
         return size_;
     }
+
+    iterator begin() { return iterator(data_); }
+
+    iterator end() { return iterator(data_ + size_); }
+
 
     private:
     // Pointer to the container's elements
@@ -267,7 +321,7 @@ public:
     ~NewDynamicArray();
     size_t size() const;
     void push_back(const T& value);
-    void erace(size_t index);
+    void erase(size_t index);
     void push_front(const T& value);
     void insert(size_t index, const T &value);
     T& operator[](size_t index);
@@ -281,12 +335,12 @@ template<typename T>
 NewDynamicArray<T>::~NewDynamicArray() {
 }
 
-template<typename T>// size
+template<typename T>
 size_t NewDynamicArray<T>::size() const {
     return size_;
 }
 
-template <typename T>// push_back
+template <typename T>
 void NewDynamicArray<T>::push_back(const T &value)
 {
     if (size_ == capacity_) {
@@ -298,18 +352,24 @@ void NewDynamicArray<T>::push_back(const T &value)
 }
 
 template<typename T>
-void NewDynamicArray<T>::erace(size_t index) {
-    if(size_ < index) {
-        throw std::out_of_range("Out in size");
+void NewDynamicArray<T>::erase(size_t index) {
+    if (index >= size_) {
+        throw std::out_of_range("this position is out of range");
+    }
+    data_[index].~T();
+    if (index == size_) {
+        --size_;
     }
 
-    for(size_t i = index; i < size_ - 1; ++i) {
-        data_[i] = std::move(data_[i+1]);
+    else {
+        for(size_t i = index; i < size_-1; i++) {
+            data_[i] = std::move(data_[i + 1]);
+        }
+        --size_;
     }
-    --size_;
 }
 
-template <typename T>// push_front
+template <typename T>
 void NewDynamicArray<T>::push_front(const T &value) {
     if (size_ == capacity_) {
         allocate();
@@ -326,7 +386,7 @@ void NewDynamicArray<T>::push_front(const T &value) {
 template <typename T>
 void NewDynamicArray<T>::insert(size_t index, const T &value) {
     if (index > size_) {
-        throw std::out_of_range("Out in size");
+        throw std::out_of_range("index out of range");
     }
     if (size_ == capacity_) {
         allocate();
@@ -582,6 +642,15 @@ public:
 
     ForwardList();
     ~ForwardList();
+    void clear();
+    ForwardList(ForwardList &&other) noexcept;
+    ForwardList &operator=(ForwardList &&other) noexcept;
+    iterator begin();
+    iterator end();
+    void push_front(T &&val);
+    void push_front(const T &val);
+    void push_back(T &&val);
+    void push_back(const T &val);
 };
 
 template<typename T> 
@@ -595,4 +664,104 @@ ForwardList<T>::~ForwardList()
         head = head->next;
         delete temp;
     }
+}
+
+template<typename T> 
+ForwardList<T>::ForwardList(ForwardList&& other) noexcept : head(other.head), count(other.count){
+    other.head = nullptr;
+    other.count = 0;
+}
+
+template <typename T>
+ForwardList<T> &ForwardList<T>::operator=(ForwardList &&other) noexcept
+{
+    if (this != &other)
+    {
+        clear();
+        head = other.head;
+        count = other.count;
+        other.head = nullptr;
+        other.count = 0;
+    }
+    return *this;
+}
+
+template <typename T>
+typename ForwardList<T>::iterator ForwardList<T>::begin()
+{
+    return iterator(head);
+}
+
+template <typename T>
+typename ForwardList<T>::iterator ForwardList<T>::end()
+{
+    return iterator(nullptr);
+}
+
+template <typename T>
+void ForwardList<T>::push_front(T&& val)
+{
+    Node* node = new Node(std::move(val));
+    node->next = head;
+    head = node;
+    ++count;
+}
+
+template <typename T>
+void ForwardList<T>::push_front(const T& val)
+{
+    Node* node = new Node(val);
+    node->next = head;
+    head = node;
+    ++count;
+}
+
+template <typename T>
+void ForwardList<T>::push_back(T&& val)
+{
+    Node* node = new Node(std::move(val));
+
+    if (!head)
+    {
+        head = node;
+    }
+    else
+    {
+        Node* cur = head;
+        while (cur->next)
+            cur = cur->next;
+        cur->next = node;
+    }
+    ++count;
+}
+
+template <typename T>
+void ForwardList<T>::push_back(const T& val)
+{
+    Node* node = new Node(val);
+
+    if (!head)
+    {
+        head = node;
+    }
+    else
+    {
+        Node* cur = head;
+        while (cur->next)
+            cur = cur->next;
+        cur->next = node;
+    }
+    ++count;
+}
+
+template <typename T>
+void ForwardList<T>::clear()
+{
+    while (head)
+    {
+        Node* tmp = head;
+        head = head->next;
+        delete tmp;
+    }
+    count = 0;
 }
